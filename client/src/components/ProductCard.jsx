@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Stamp from "./Stamp";
-import { getImageUrl, formatPrice } from "../lib/format";
+import { getImageUrl } from "../lib/format";
+import PriceDisplay from "./PriceDisplay";
 
 export default function ProductCard({ product }) {
   const { i18n } = useTranslation();
@@ -34,14 +35,18 @@ export default function ProductCard({ product }) {
           </div>
         )}
       </div>
-      <div className="mt-3 flex items-baseline justify-between">
+      <div className="mt-3 flex items-start justify-between gap-3">
         <h3 className="font-display text-lg group-hover:text-oxblood transition-colors">
           {name}
         </h3>
-        <span className="font-mono text-sm text-stone">
-          {formatPrice(product.price)}
-        </span>
+        <PriceDisplay
+          price={product.price}
+          lang={i18n.language}
+          align="end"
+          className="shrink-0 text-sm"
+        />
       </div>
     </Link>
   );
 }
+
