@@ -7,7 +7,7 @@ import RelatedProducts from "../components/RelatedProducts";
 import ExpandableText from "../components/ExpandableText";
 import ReviewsSection from "../components/ReviewsSection";
 import { products as productsApi } from "../api/client";
-import { formatPrice } from "../lib/format";
+import PriceDisplay from "../components/PriceDisplay";
 import { useCart } from "../context/CartContext";
 
 export default function ProductDetail() {
@@ -145,9 +145,11 @@ export default function ProductDetail() {
             </Stamp>
           )}
           <h1 className="font-display text-3xl md:text-4xl">{productName}</h1>
-          <p className="mt-2 font-mono text-lg text-oxblood">
-            {formatPrice(product.price, i18n.language)}
-          </p>
+          <PriceDisplay
+            price={product.price}
+            lang={i18n.language}
+            className="mt-3 text-lg"
+          />
           <ExpandableText
             text={productDescription}
             limit={220}
