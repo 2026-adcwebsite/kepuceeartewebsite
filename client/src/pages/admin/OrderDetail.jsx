@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { orders as ordersApi } from "../../api/client";
 import { formatPrice } from "../../lib/format";
+import PriceDisplay from "../../components/PriceDisplay";
 import Stamp from "../../components/Stamp";
 
 const STATUSES = ["New", "Confirmed", "In Delivery", "Delivered", "Cancelled"];
@@ -153,9 +154,15 @@ export default function OrderDetail() {
                   </p>
                 )}
               </div>
-              <span className="font-mono">
-                {formatPrice(item.price * item.quantity, i18n.language)}
-              </span>
+              <PriceDisplay
+                price={item.originalPrice ?? item.price}
+                salePrice={item.price}
+                discountPercent={item.discountPercent ?? 0}
+                quantity={item.quantity}
+                lang={i18n.language}
+                align="end"
+                className="text-sm"
+              />
             </div>
           );
         })}
