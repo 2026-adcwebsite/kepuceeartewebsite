@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useCart } from "../context/CartContext";
 import { getImageUrl, formatPrice } from "../lib/format";
+import PriceDisplay from "../components/PriceDisplay";
 import { products as productsApi } from "../api/client";
 
 export default function Cart() {
@@ -93,9 +94,12 @@ export default function Cart() {
                       </p>
                     )}
                   </div>
-                  <span className="font-mono text-sm">
-                    {formatPrice(item.price, i18n.language)}
-                  </span>
+                  <PriceDisplay
+                    price={item.price}
+                    lang={i18n.language}
+                    align="end"
+                    className="text-sm"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between mt-4">
