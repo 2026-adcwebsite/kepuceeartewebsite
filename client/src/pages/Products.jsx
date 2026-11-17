@@ -4,6 +4,7 @@ import { products as productsApi } from "../api/client";
 import ProductCard from "../components/ProductCard";
 import { getImageUrl } from "../lib/format";
 import { deriveCategoryThumbnails } from "../lib/categories";
+import { getProductPricing } from "../lib/pricing";
 
 export default function Products() {
   const { t, i18n } = useTranslation();
@@ -56,8 +57,8 @@ export default function Products() {
       : products;
 
     list = [...list].sort((a, b) => {
-      if (sort === "price-asc") return a.price - b.price;
-      if (sort === "price-desc") return b.price - a.price;
+      if (sort === "price-asc") return getProductPricing(a.price).salePrice - getProductPricing(b.price).salePrice;
+      if (sort === "price-desc") return getProductPricing(b.price).salePrice - getProductPricing(a.price).salePrice;
       // Sort by name in current language
       const nameA =
         typeof a.name === "object"
