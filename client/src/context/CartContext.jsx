@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
+import { getProductPricing } from "../lib/pricing";
 
 const CartContext = createContext(null);
 const STORAGE_KEY = "msole_cart";
@@ -50,6 +51,58 @@ export function CartProvider({ children }) {
       return [...prev, { productId, price, image, variant, quantity }];
     });
   }
+
+  function removeItem(productId, variant) {
+    const key = lineKey(productId, variant);
+    setItems((prev) =>
+      prev.filter((i) => lineKey(i.productId, i.variant) !== key),
+    );
+  }
+
+  function updateQuantity(productId, variant, quantity) {
+    const key = lineKey(productId, variant);
+    setItems((prev) =>
+      prev.map((i) =>
+        lineKey(i.productId, i.variant) === key
+          ? { ...i, quantity: Math.max(1, quantity) }
+          : i,
+      ),
+    );
+  }
+
+  function clearCart() {
+    setItems([]);
+  }
+
+  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const total = items.reduce(
+    (sum, item) => sum + getProductPricing(item.price).salePrice * item.quantity,
+    0,
+  );
+
+  return (
+    <CartContext.Provider
+      value={{
+        items,
+        addItem,
+        removeItem,
+        updateQuantity,
+        clearCart,
+        itemCount,
+        total,
+      }}
+    >
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+export function useCart() {
+  const ctx = useContext(CartContext);
+  if (!ctx) throw new Error("useCart must be used within a CartProvider");
+  return ctx;
+}
+
 
   function removeItem(productId, variant) {
     const key = lineKey(productId, variant);
