@@ -1,0 +1,17 @@
+{
+  "name": "kepuca-e-arte",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kepuca e Arte — React client + Express API, served as one Node app",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "install:server": "npm ci --prefix server --omit=dev",
+    "install:client": "npm ci --prefix client --include=dev",
+    "build": "npm run install:server && npm run install:client && npm run build --prefix client",
+    "start": "node server/src/index.js",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client"
+  }
+}
