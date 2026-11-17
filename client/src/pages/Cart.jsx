@@ -1,49 +1,124 @@
-import { useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import Stamp from "../components/Stamp";
-import { formatPrice } from "../lib/format";
+import { orders as ordersApi } from "../api/client";
+import { formatDate, formatPrice } from "../lib/format";
 import PriceDisplay from "../components/PriceDisplay";
-import { saveOrderToDevice, shareOrder } from "../lib/orderActions";
-import { saveOrderReceiptImage } from "../lib/orderReceiptImage";
 
-export default function OrderConfirmation() {
+function StatusTimeline({ statusHistory, currentStatus, t, lang }) {
+  const STATUS_ORDER = ["New", "Confirmed", "In Delivery", "Delivered"];
+  const isCancelled = currentStatus === "Cancelled";
+
+  // Build one row per known status, filled in if it appears in history.
+  const rows = STATUS_ORDER.map((status) => {
+    const entry = statusHistory.find((h) => h.status === status);
+    return { status, entry };
+  });
+
+  return (
+    <ol className="relative border-l border-stone-line pl-6 space-y-6 sm:space-y-8">
+      {rows.map(({ status, entry }) => {
+        const reached = Boolean(entry);
+        const isCurrent = status === currentStatus;
+
+        return (
+          <li key={status} className="relative">
+            <span
+              className={`absolute -left-[29px] top-0.5 w-3.5 h-3.5 rounded-full border-2 ${
+                reached
+                  ? isCurrent
+                    ? "bg-oxblood border-oxblood"
+                    : "bg-ink border-ink"
+                  : "bg-paper border-stone-line"
+              }`}
+            />
+            <div
+              className={`font-mono text-xs uppercase tracking-stamp ${
+                reached ? "text-ink" : "text-stone"
+              } ${isCurrent ? "text-oxblood" : ""}`}
+            >
+              {t(`orderStatus.${status}`)}
+              {isCurrent && (
+                <span className="ml-2 normal-case tracking-normal text-[10px] border border-oxblood text-oxblood px-1.5 py-0.5 align-middle">
+                  {t("trackOrder.current")}
+                </span>
+              )}
+            </div>
+            {entry && (
+              <div className="text-stone text-xs sm:text-sm mt-1">
+                {formatDate(entry.changedAt, lang)}
+              </div>
+            )}
+          </li>
+        );
+      })}
+
+      {isCancelled && (
+        <li className="relative">
+          <span className="absolute -left-[29px] top-0.5 w-3.5 h-3.5 rounded-full border-2 bg-oxblood border-oxblood" />
+          <div className="font-mono text-xs uppercase tracking-stamp text-oxblood">
+            {t("orderStatus.Cancelled")}
+            <span className="ml-2 normal-case tracking-normal text-[10px] border border-oxblood text-oxblood px-1.5 py-0.5 align-middle">
+              {t("trackOrder.current")}
+            </span>
+          </div>
+          {(() => {
+            const entry = statusHistory.find((h) => h.status === "Cancelled");
+            return entry ? (
+              <div className="text-stone text-xs sm:text-sm mt-1">
+                {formatDate(entry.changedAt, lang)}
+              </div>
+            ) : null;
+          })()}
+        </li>
+      )}
+    </ol>
+  );
+}
+
+export default function TrackOrder() {
   const { t, i18n } = useTranslation();
-  const location = useLocation();
-  const order = location.state?.order;
+  const [orderNumber, setOrderNumber] = useState("");
+  const [phone, setPhone] = useState("");
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    document.title = `${t("orderConfirmation.stamp")} — Këpucë e Artë`;
+    document.title = `${t("trackOrder.title")} — Këpucë e Artë`;
   }, [t]);
 
-  if (!order) {
-    return (
-      <div className="mx-auto max-w-xl px-5 md:px-8 py-24 text-center">
-        <h1 className="font-display text-3xl mb-4">{t("orderConfirmation.noOrder")}</h1>
-        <p className="text-stone mb-8">{t("orderConfirmation.noOrderMessage")}</p>
-        <Link
-          to="/products"
-          className="inline-flex items-center px-6 py-3 bg-ink text-paper font-mono text-xs uppercase tracking-stamp hover:bg-oxblood transition-colors"
-        >
-          {t("orderConfirmation.shopCollection")}
-        </Link>
-      </div>
-    );
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const trimmed = orderNumber.trim().toUpperCase();
+    const trimmedPhone = phone.trim();
+    if (!trimmed || !trimmedPhone) return;
+
+    setLoading(true);
+    setNotFound(false);
+    setError(null);
+    setOrder(null);
+
+    try {
+      const data = await ordersApi.track(trimmed, trimmedPhone);
+      setOrder(data);
+    } catch (err) {
+      // Backend returns "No order found" for both unknown number and wrong phone.
+      if (/no order found|not found/i.test(err.message || "")) {
+        setNotFound(true);
+      } else {
+        const code = err.code;
+        setError(
+          code ? t(`errors.${code}`, { defaultValue: err.message }) : err.message,
+        );
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleSave() {
-    saveOrderToDevice(order);
-  }
-
-  function handleSaveImage() {
-    saveOrderReceiptImage(order);
-  }
-
-  async function handleShare() {
-    await shareOrder(order);
-  }
-
-  // Resolve item name from the order snapshot (backend stores name at time of order)
   function resolveItemName(item) {
     if (typeof item.name === "object") {
       return item.name?.[i18n.language] || item.name?.sq || "";
@@ -52,94 +127,148 @@ export default function OrderConfirmation() {
   }
 
   return (
-    <div className="mx-auto max-w-xl px-5 md:px-8 py-24">
-      <div className="text-center mb-10">
-        <Stamp tone="oxblood" className="mb-4">
-          {t("orderConfirmation.stamp")}
-        </Stamp>
-        <h1 className="font-display text-3xl md:text-4xl">
-          {order.orderNumber}
-        </h1>
-        <p className="text-stone mt-3">
-          {t("orderConfirmation.thankYou", {
-            name: order.customer?.firstName,
+    <div className="mx-auto max-w-2xl px-5 sm:px-6 md:px-8 py-12 sm:py-16 md:py-20">
+      <Stamp tone="oxblood" className="mb-4 sm:mb-6">
+        {t("trackOrder.stamp")}
+      </Stamp>
+      <h1 className="font-display text-3xl sm:text-4xl tracking-tight mb-3">
+        {t("trackOrder.title")}
+      </h1>
+      <p className="text-stone text-sm sm:text-base leading-relaxed mb-8">
+        {t("trackOrder.subtitle")
+          .split("<mono>")
+          .flatMap((part, i) => {
+            if (i === 0) return [part];
+            const [mono, rest] = part.split("</mono>");
+            return [
+              <span key={i} className="font-mono">
+                {mono}
+              </span>,
+              rest,
+            ];
           })}
-        </p>
-      </div>
+      </p>
 
-      <div className="divide-y divide-stone-line border-y border-stone-line">
-        {order.items?.map((item, i) => {
-          const name = resolveItemName(item);
-          return (
-            <div
-              key={i}
-              className="py-4 flex items-baseline justify-between text-sm"
-            >
-              <div>
-                <p>{name}</p>
-                {item.variant && (
-                  <p className="text-xs text-stone font-mono uppercase tracking-stamp mt-0.5">
-                    {item.variant.size
-                      ? t("orderConfirmation.sizeLabel", { size: item.variant.size })
-                      : ""}
-                    {item.variant.size && item.variant.color ? " / " : ""}
-                    {item.variant.color ?? ""} × {item.quantity}
-                  </p>
-                )}
-              </div>
-              <PriceDisplay
-                price={item.originalPrice ?? item.price}
-                salePrice={item.price}
-                discountPercent={item.discountPercent ?? 0}
-                quantity={item.quantity}
-                lang={i18n.language}
-                align="end"
-                className="text-sm"
-              />
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3 mb-10">
+        <input
+          type="text"
+          value={orderNumber}
+          onChange={(e) => setOrderNumber(e.target.value)}
+          placeholder={t("trackOrder.orderNumberPlaceholder")}
+          className="border border-stone-line bg-paper px-4 py-3 text-sm font-mono"
+          aria-label={t("trackOrder.orderNumberLabel")}
+          autoComplete="off"
+        />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder={t("trackOrder.phonePlaceholder")}
+            className="flex-1 border border-stone-line bg-paper px-4 py-3 text-sm font-mono"
+            aria-label={t("trackOrder.phoneLabel")}
+            autoComplete="tel"
+          />
+          <button
+            type="submit"
+            disabled={loading || !orderNumber.trim() || !phone.trim()}
+            className="px-6 py-3 bg-ink text-paper font-mono text-xs uppercase tracking-stamp hover:bg-oxblood transition-colors disabled:opacity-50 whitespace-nowrap"
+          >
+            {loading ? t("trackOrder.searching") : t("trackOrder.trackButton")}
+          </button>
+        </div>
+      </form>
+
+      {notFound && (
+        <div className="border border-stone-line px-4 py-6 text-center">
+          <p className="text-stone text-sm">{t("trackOrder.notFoundMessage")}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="border border-oxblood text-oxblood px-4 py-3 text-sm">
+          {error}
+        </div>
+      )}
+
+      {order && (
+        <div className="border border-stone-line p-5 sm:p-8">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-8">
+            <div>
+              <div className="stamp text-ink mb-1">{t("trackOrder.orderLabel")}</div>
+              <div className="font-mono text-lg">{order.orderNumber}</div>
             </div>
-          );
-        })}
-      </div>
+            <div className="text-right">
+              <div className="stamp text-ink mb-1">{t("trackOrder.placedLabel")}</div>
+              <div className="text-stone text-sm">
+                {formatDate(order.createdAt, i18n.language)}
+              </div>
+            </div>
+          </div>
 
-      <div className="mt-6 flex items-center justify-between">
-        <span className="font-mono text-xs uppercase tracking-stamp text-stone">
-          {t("common.total")}
-        </span>
-        <span className="font-display text-2xl">
-          {formatPrice(order.total, i18n.language)}
-        </span>
-      </div>
+          <StatusTimeline
+            statusHistory={order.statusHistory || []}
+            currentStatus={order.status}
+            t={t}
+            lang={i18n.language}
+          />
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          className="px-4 py-3 border border-ink text-ink font-mono text-xs uppercase tracking-stamp hover:bg-ink hover:text-paper transition-colors"
-        >
-          {t("orderConfirmation.saveAsText")}
-        </button>
-        <button
-          type="button"
-          onClick={handleSaveImage}
-          className="px-4 py-3 border border-ink text-ink font-mono text-xs uppercase tracking-stamp hover:bg-ink hover:text-paper transition-colors"
-        >
-          {t("orderConfirmation.saveAsImage")}
-        </button>
-        <button
-          type="button"
-          onClick={handleShare}
-          className="px-4 py-3 border border-ink text-ink font-mono text-xs uppercase tracking-stamp hover:bg-ink hover:text-paper transition-colors"
-        >
-          {t("orderConfirmation.sendToWhatsApp")}
-        </button>
-      </div>
+          <div className="mt-10 pt-6 border-t border-stone-line">
+            <div className="stamp text-ink mb-3">{t("trackOrder.itemsLabel")}</div>
+            <ul className="space-y-3">
+              {order.items.map((item, i) => {
+                const name = resolveItemName(item);
+                return (
+                  <li
+                    key={i}
+                    className="flex items-center justify-between gap-4 text-sm"
+                  >
+                    <div>
+                      <div className="text-ink">{name}</div>
+                      {item.variant &&
+                        (item.variant.size || item.variant.color) && (
+                          <div className="text-stone text-xs">
+                            {[item.variant.size, item.variant.color]
+                              .filter(Boolean)
+                              .join(" / ")}
+                          </div>
+                        )}
+                      <div className="text-stone text-xs">
+                        {t("trackOrder.qtyLabel", { qty: item.quantity })}
+                      </div>
+                    </div>
+                    <PriceDisplay
+                      price={item.originalPrice ?? item.price}
+                      salePrice={item.price}
+                      discountPercent={item.discountPercent ?? 0}
+                      quantity={item.quantity}
+                      lang={i18n.language}
+                      align="end"
+                      className="text-sm"
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="flex items-center justify-between mt-6 pt-4 border-t border-stone-line font-mono text-sm">
+              <span className="uppercase tracking-stamp text-stone">
+                {t("common.total")}
+              </span>
+              <span className="text-ink text-base">
+                {formatPrice(order.total, i18n.language)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-10 text-center">
         <Link
-          to="/products"
-          className="font-mono text-xs uppercase tracking-stamp hover:text-oxblood"
+          to="/contact"
+          className="font-mono text-xs uppercase tracking-stamp text-stone hover:text-oxblood transition-colors"
         >
-          {t("orderConfirmation.continueShopping")}
+          {t("trackOrder.contact")}
         </Link>
       </div>
     </div>
